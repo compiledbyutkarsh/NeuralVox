@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NeuralVox — AI Speech Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #060608;
+    --panel:    #0d0d12;
+    --border:   #1c1c28;
+    --accent:   #00d4ff;
+    --accent2:  #0099cc;
+    --green:    #00ff88;
+    --red:      #ff4466;
+    --text:     #e0e8f0;
+    --sub:      #6677888;
+    --muted:    #2a2a3a;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grain */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 9999;
+  }
+
+  /* Grid background */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 32px 48px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    position: relative;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 14px;
+  }
+  .logo-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, #00d4ff22, #00d4ff44);
+    border: 1px solid #00d4ff44;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo-text h1 {
+    font-size: 20px; font-weight: 800; letter-spacing: 2px;
+    background: linear-gradient(90deg, #00d4ff, #ffffff);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .logo-text p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: #445566; letter-spacing: 2px; margin-top: 2px;
+  }
+  .status-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    padding: 6px 14px; border-radius: 50px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted); transition: background .3s;
+  }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; }
+  .status-dot.listening { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse .8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* ── Main Grid ── */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 1px;
+    background: var(--border);
+    min-height: calc(100vh - 89px);
+  }
+  .left, .right { background: var(--bg); }
+
+  /* ── Mic Section ── */
+  .mic-section {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 60px 48px; gap: 48px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Waveform */
+  .waveform-wrap {
+    width: 100%; max-width: 600px;
+    height: 80px; position: relative;
+  }
+  #waveCanvas {
+    width: 100%; height: 100%;
+  }
+
+  /* Mic Button */
+  .mic-wrap {
+    position: relative; display: flex;
+    align-items: center; justify-content: center;
+  }
+  .mic-rings {
+    position: absolute;
+    width: 120px; height: 120px;
+  }
+  .mic-rings span {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 1px solid var(--accent);
+    opacity: 0; animation: none;
+  }
+  .mic-rings.active span:nth-child(1) { animation: ring 2s .0s infinite; }
+  .mic-rings.active span:nth-child(2) { animation: ring 2s .5s infinite; }
+  .mic-rings.active span:nth-child(3) { animation: ring 2s 1s infinite; }
+  @keyframes ring {
+    0%  { transform: scale(1);   opacity: .6; }
+    100%{ transform: scale(2.2); opacity: 0;  }
+  }
+  .mic-btn {
+    width: 88px; height: 88px; border-radius: 50%;
+    background: linear-gradient(135deg, #0d1a1f, #0d2030);
+    border: 2px solid var(--accent);
+    cursor: pointer; position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s; box-shadow: 0 0 30px rgba(0,212,255,.15);
+    outline: none;
+  }
+  .mic-btn:hover { transform: scale(1.06); box-shadow: 0 0 50px rgba(0,212,255,.3); }
+  .mic-btn:active { transform: scale(.96); }
+  .mic-btn.listening {
+    border-color: var(--red);
+    box-shadow: 0 0 50px rgba(255,68,102,.3);
+    background: linear-gradient(135deg, #1a0d10, #300d15);
+  }
+  .mic-btn svg { width: 32px; height: 32px; }
+
+  /* Result Display */
+  .result-area {
+    width: 100%; max-width: 600px; min-height: 80px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 24px;
+    position: relative;
+  }
+  .result-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: 3px; color: #445566;
+    margin-bottom: 10px;
+  }
+  .result-text {
+    font-size: 17px; font-weight: 500; color: var(--text);
+    line-height: 1.5; min-height: 28px;
+  }
+  .result-text.placeholder { color: #334455; font-style: italic; font-size: 14px; }
+  .command-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(0,255,136,.08); border: 1px solid rgba(0,255,136,.2);
+    color: var(--green); font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; padding: 4px 10px; border-radius: 4px; margin-top: 10px;
+  }
+  .error-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,68,102,.08); border: 1px solid rgba(255,68,102,.2);
+    color: var(--red); font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; padding: 4px 10px; border-radius: 4px; margin-top: 10px;
+  }
+
+  /* Hint */
+  .hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: #334455; text-align: center;
+  }
+
+  /* ── Commands Panel ── */
+  .commands-section {
+    padding: 32px 48px;
+  }
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 3px; color: #445566;
+    margin-bottom: 16px;
+  }
+  .commands-grid {
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .cmd-chip {
+    background: var(--panel); border: 1px solid var(--border);
+    color: #778899; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; padding: 6px 12px; border-radius: 6px;
+    cursor: pointer; transition: all .15s;
+  }
+  .cmd-chip:hover {
+    border-color: var(--accent); color: var(--accent);
+    background: rgba(0,212,255,.05);
+  }
+
+  /* ── Right Panel: Transcript ── */
+  .right {
+    display: flex; flex-direction: column;
+  }
+  .panel-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-header h2 {
+    font-size: 13px; font-weight: 600; letter-spacing: 1px;
+  }
+  .clear-btn {
+    background: none; border: 1px solid var(--border);
+    color: #445566; font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; padding: 4px 10px; border-radius: 4px;
+    cursor: pointer; transition: all .15s;
+  }
+  .clear-btn:hover { border-color: var(--red); color: var(--red); }
+
+  .transcript-list {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .t-entry {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+    animation: slideIn .25s ease;
+  }
+  @keyframes slideIn { from { opacity:0; transform:translateY(8px); } }
+  .t-entry.command-type { border-color: rgba(0,255,136,.2); }
+  .t-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; color: #334455; margin-bottom: 6px;
+  }
+  .t-text { font-size: 13px; line-height: 1.5; color: var(--text); }
+  .t-cmd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--green); margin-top: 6px;
+  }
+  .empty-transcript {
+    text-align: center; padding: 60px 20px; color: #2a3a4a;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    line-height: 2;
+  }
+
+  /* ── TTS Bar ── */
+  .tts-bar {
+    border-top: 1px solid var(--border); padding: 14px 16px;
+    display: flex; gap: 8px;
+  }
+  .tts-input {
+    flex: 1; background: var(--panel); border: 1px solid var(--border);
+    color: var(--text); font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; padding: 8px 12px; border-radius: 6px; outline: none;
+    transition: border .15s;
+  }
+  .tts-input:focus { border-color: var(--accent); }
+  .tts-btn {
+    background: rgba(0,212,255,.1); border: 1px solid var(--accent);
+    color: var(--accent); font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .tts-btn:hover { background: rgba(0,212,255,.2); }
+
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🧠</div>
+    <div class="logo-text">
+      <h1>NEURALVOX</h1>
+      <p>AI SPEECH INTELLIGENCE</p>
+    </div>
+  </div>
+  <div class="status-pill">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusLabel" style="color:#445566">IDLE</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- Left Panel -->
+  <div class="left">
+    <div class="mic-section">
+
+      <!-- Waveform -->
+      <div class="waveform-wrap">
+        <canvas id="waveCanvas"></canvas>
+      </div>
+
+      <!-- Mic Button -->
+      <div class="mic-wrap">
+        <div class="mic-rings" id="micRings">
+          <span></span><span></span><span></span>
+        </div>
+        <button class="mic-btn" id="micBtn" onclick="toggleListen()">
+          <svg id="micIcon" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="1.5">
+            <rect x="9" y="2" width="6" height="11" rx="3"/>
+            <path d="M5 10a7 7 0 0 0 14 0"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
+            <line x1="8" y1="22" x2="16" y2="22"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Result -->
+      <div class="result-area">
+        <div class="result-label">RECOGNIZED SPEECH</div>
+        <div class="result-text placeholder" id="resultText">Press the mic and start speaking...</div>
+        <div id="resultBadge"></div>
+      </div>
+
+      <div class="hint">Click mic · speak clearly · release to process</div>
+    </div>
+
+    <!-- Commands -->
+    <div class="commands-section">
+      <div class="section-title">AVAILABLE COMMANDS</div>
+      <div class="commands-grid" id="commandsGrid">
+        <div class="cmd-chip">open browser</div>
+        <div class="cmd-chip">open google</div>
+        <div class="cmd-chip">open youtube</div>
+        <div class="cmd-chip">open github</div>
+        <div class="cmd-chip">what time is it</div>
+        <div class="cmd-chip">what is the date</div>
+        <div class="cmd-chip">hello</div>
+        <div class="cmd-chip">who are you</div>
+        <div class="cmd-chip">search for &lt;query&gt;</div>
+        <div class="cmd-chip">stop listening</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right">
+    <div class="panel-header">
+      <h2>TRANSCRIPT LOG</h2>
+      <button class="clear-btn" onclick="clearTranscript()">CLEAR</button>
+    </div>
+    <div class="transcript-list" id="transcriptList">
+      <div class="empty-transcript" id="emptyTranscript">
+        No entries yet.<br>Start speaking to see<br>your transcript here.
+      </div>
+    </div>
+    <div class="tts-bar">
+      <input class="tts-input" id="ttsInput" placeholder="Type text to speak aloud...">
+      <button class="tts-btn" onclick="speakText()">▶ SPEAK</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = 'http://localhost:5000/api';
+let isListening = false;
+let waveAnimId = null;
+const bars = new Float32Array(48).fill(0.05);
+
+// ── Waveform ──────────────────────────────────────────────────────────────
+const canvas = document.getElementById('waveCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  canvas.width  = canvas.offsetWidth  * devicePixelRatio;
+  canvas.height = canvas.offsetHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function drawWave() {
+  waveAnimId = requestAnimationFrame(drawWave);
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  ctx.clearRect(0, 0, W, H);
+
+  const bw = W / bars.length * 0.6;
+  const gap = W / bars.length * 0.4;
+
+  for (let i = 0; i < bars.length; i++) {
+    if (isListening) {
+      bars[i] += (Math.random() * 0.7 - bars[i]) * 0.25;
+    } else {
+      bars[i] += (0.04 - bars[i]) * 0.08;
+    }
+    const bh = Math.max(3, bars[i] * H * 0.85);
+    const x = i * (bw + gap);
+    const y = (H - bh) / 2;
+
+    const alpha = isListening ? 0.5 + bars[i] * 0.5 : 0.2;
+    ctx.fillStyle = isListening
+      ? `rgba(0,212,255,${alpha})`
+      : `rgba(30,50,70,${alpha})`;
+
+    ctx.beginPath();
+    ctx.roundRect(x, y, bw, bh, 2);
+    ctx.fill();
+  }
+}
+drawWave();
+
+// ── Core Functions ────────────────────────────────────────────────────────
+async function toggleListen() {
+  if (isListening) return;
+  setListeningState(true);
+
+  try {
+    const res = await fetch(`${API}/listen`, { method: 'POST' });
+    const data = await res.json();
+    setListeningState(false);
+
+    if (data.success) {
+      showResult(data.result);
+      addToTranscript(data.result);
+    } else {
+      showError(data.error);
+    }
+  } catch (err) {
+    setListeningState(false);
+    showError('Cannot connect to server. Is app.py running?');
+  }
+}
+
+function setListeningState(val) {
+  isListening = val;
+  const btn  = document.getElementById('micBtn');
+  const dot  = document.getElementById('statusDot');
+  const lbl  = document.getElementById('statusLabel');
+  const rings = document.getElementById('micRings');
+
+  btn.classList.toggle('listening', val);
+  rings.classList.toggle('active', val);
+
+  if (val) {
+    dot.className = 'status-dot listening';
+    lbl.textContent = 'LISTENING';
+    lbl.style.color = '#00d4ff';
+    document.getElementById('resultText').textContent = 'Listening...';
+    document.getElementById('resultText').className = 'result-text placeholder';
+    document.getElementById('resultBadge').innerHTML = '';
+  } else {
+    dot.className = 'status-dot';
+    lbl.textContent = 'IDLE';
+    lbl.style.color = '#445566';
+  }
+}
+
+function showResult(entry) {
+  const el = document.getElementById('resultText');
+  el.textContent = entry.text;
+  el.className = 'result-text';
+
+  const badge = document.getElementById('resultBadge');
+  if (entry.command) {
+    badge.innerHTML = `<div class="command-badge">⚡ ${entry.command}</div>`;
+  } else {
+    badge.innerHTML = '';
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('resultText');
+  el.textContent = msg;
+  el.className = 'result-text placeholder';
+  document.getElementById('resultBadge').innerHTML =
+    `<div class="error-badge">✕ Error</div>`;
+}
+
+function addToTranscript(entry) {
+  const list = document.getElementById('transcriptList');
+  const empty = document.getElementById('emptyTranscript');
+  if (empty) empty.remove();
+
+  const div = document.createElement('div');
+  div.className = `t-entry ${entry.type === 'command' ? 'command-type' : ''}`;
+  div.innerHTML = `
+    <div class="t-time">${entry.timestamp}</div>
+    <div class="t-text">${entry.text}</div>
+    ${entry.command ? `<div class="t-cmd">⚡ ${entry.command}</div>` : ''}
+  `;
+  list.prepend(div);
+}
+
+async function clearTranscript() {
+  await fetch(`${API}/clear`, { method: 'POST' });
+  const list = document.getElementById('transcriptList');
+  list.innerHTML = `<div class="empty-transcript" id="emptyTranscript">No entries yet.<br>Start speaking to see<br>your transcript here.</div>`;
+}
+
+async function speakText() {
+  const input = document.getElementById('ttsInput');
+  const text = input.value.trim();
+  if (!text) return;
+  await fetch(`${API}/speak`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text })
+  });
+  input.value = '';
+}
+
+document.getElementById('ttsInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') speakText();
+});
+
+// Keyboard shortcut: Space to listen
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+    e.preventDefault();
+    toggleListen();
+  }
+});
+</script>
+</body>
+</html>
