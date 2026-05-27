@@ -102,4 +102,4 @@ def speak_text():
 if __name__ == '__main__':
     print("\n🎙️  NeuralVox starting...")
     print("📡  Open http://localhost:5000\n")
-    app.run(debug=False, port=5000)
+    app.run(debug=False, port=8080)
